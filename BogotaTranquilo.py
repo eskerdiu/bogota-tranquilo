@@ -30,7 +30,7 @@ with st.sidebar:
 st.title("Bogotá Tranquilo 3.0 🌿")
 st.success("""
 ¡Bienvenido! Esta app te ayuda a reducir el estrés por tráfico en Bogotá.  
-Calcula tu tiempo de viaje, recibe alertas de hora pico, tips para calmarte y trackea tu estrés diario.  
+Calcula tu tiempo de viaje, recibe alertas de hora pico y tips para calmarte, y trackea tu estrés diario.  
 ¡Prueba registrando tu día y ve tu progreso! 😌
 """)
 st.markdown("---")
