@@ -5,6 +5,7 @@ from datetime import datetime
 import random
 import folium
 from streamlit_folium import st_folium
+import requests  # Para la API de rutas reales
 
 # Configuración de la página (diseño pro)
 st.set_page_config(
@@ -61,8 +62,10 @@ tiempo_total = minutos_base + minutos_extra
 st.metric("Tiempo estimado en trancones", f"{tiempo_total} minutos", delta=f"+{minutos_extra} min por tráfico", delta_color="inverse" if minutos_extra > 40 else "normal")
 st.info(alerta)
 
-# Mapa interactivo
-st.subheader("Mapa aproximado de tu ruta")
+# Mapa con ruta real por calles (OpenRouteService - gratis)
+st.subheader("Mapa con ruta real por calles y carreteras")
+
+# Coordenadas (lat, lon)
 ubicaciones = {
     "Norte (Suba/Usaquén)": [4.75, -74.05],
     "Sur (Bosa/Kennedy)": [4.55, -74.12],
@@ -79,12 +82,50 @@ ubicaciones = {
 coord_origen = ubicaciones.get(origen, [4.61, -74.07])
 coord_destino = ubicaciones.get(destino, [4.61, -74.07])
 
-m = folium.Map(location=[(coord_origen[0] + coord_destino[0])/2, (coord_origen[1] + coord_destino[1])/2], zoom_start=12, tiles="OpenStreetMap")
-folium.Marker(coord_origen, popup=f"Origen: {origen}", icon=folium.Icon(color="green", icon="home")).add_to(m)
-folium.Marker(coord_destino, popup=f"Destino: {destino}", icon=folium.Icon(color="red", icon="flag")).add_to(m)
-folium.PolyLine([coord_origen, coord_destino], color="blue", weight=5, opacity=0.7).add_to(m)
+# API OpenRouteService (gratis - regístrate en https://openrouteservice.org/sign-up/ y reemplaza con tu clave real)
+api_key = ""  # ← Reemplaza con tu clave gratuita de OpenRouteService (ej. "5b3ce3597851110001cf6248...")
 
-st_folium(m, width=700, height=400)
+if api_key == "":
+    st.warning("Para ruta real por calles, agrega tu clave API gratuita de OpenRouteService en el código (regístrate en openrouteservice.org). Usando línea directa por ahora.")
+    # Fallback: línea directa
+    m = folium.Map(location=[coord_origen[0], coord_origen[1]], zoom_start=12, tiles="OpenStreetMap")
+    folium.Marker([coord_origen[0], coord_origen[1]], popup=f"Origen: {origen}", icon=folium.Icon(color="green", icon="home")).add_to(m)
+    folium.Marker([coord_destino[0], coord_destino[1]], popup=f"Destino: {destino}", icon=folium.Icon(color="red", icon="flag")).add_to(m)
+    folium.PolyLine([[coord_origen[0], coord_origen[1]], [coord_destino[0], coord_destino[1]]], color="blue", weight=5, opacity=0.8).add_to(m)
+    st_folium(m, width=700, height=400)
+else:
+    try:
+        url = "https://api.openrouteservice.org/v2/directions/driving-car"
+        params = {
+            'api_key': api_key,
+            'start': f"{coord_origen[1]},{coord_origen[0]}",  # lon, lat
+            'end': f"{coord_destino[1]},{coord_destino[0]}"
+        }
+        response = requests.get(url, params=params)
+        route_data = response.json()
+        if 'features' in route_data and route_data['features']:
+            coordinates = route_data['features'][0]['geometry']['coordinates']  # [[lon, lat], ...]
+            route_coords = [[coord[1], coord[0]] for coord in coordinates]  # Invertir a [lat, lon] para folium
+            m = folium.Map(location=[coord_origen[0], coord_origen[1]], zoom_start=12, tiles="OpenStreetMap")
+            folium.Marker([coord_origen[0], coord_origen[1]], popup=f"Origen: {origen}", icon=folium.Icon(color="green", icon="home")).add_to(m)
+            folium.Marker([coord_destino[0], coord_destino[1]], popup=f"Destino: {destino}", icon=folium.Icon(color="red", icon="flag")).add_to(m)
+            folium.PolyLine(route_coords, color="blue", weight=5, opacity=0.8).add_to(m)
+            st_folium(m, width=700, height=400)
+        else:
+            st.warning("No se pudo calcular ruta real. Usando línea directa...")
+            # Fallback línea directa
+            m = folium.Map(location=[coord_origen[0], coord_origen[1]], zoom_start=12)
+            folium.Marker([coord_origen[0], coord_origen[1]], popup="Origen", icon=folium.Icon(color="green")).add_to(m)
+            folium.Marker([coord_destino[0], coord_destino[1]], popup="Destino", icon=folium.Icon(color="red")).add_to(m)
+            folium.PolyLine([[coord_origen[0], coord_origen[1]], [coord_destino[0], coord_destino[1]]], color="blue").add_to(m)
+            st_folium(m, width=700, height=400)
+    except Exception as e:
+        st.error(f"Error al cargar ruta real: {str(e)}. Usando línea directa...")
+        m = folium.Map(location=[coord_origen[0], coord_origen[1]], zoom_start=12)
+        folium.Marker([coord_origen[0], coord_origen[1]], popup="Origen", icon=folium.Icon(color="green")).add_to(m)
+        folium.Marker([coord_destino[0], coord_destino[1]], popup="Destino", icon=folium.Icon(color="red")).add_to(m)
+        folium.PolyLine([[coord_origen[0], coord_origen[1]], [coord_destino[0], coord_destino[1]]], color="blue").add_to(m)
+        st_folium(m, width=700, height=400)
 
 # Sección 2: Tips
 st.header("2. Tips rápidos para calmarte en el camino")
